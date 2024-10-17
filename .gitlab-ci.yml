@@ -1,0 +1,103 @@
+stages:
+  - build
+  - style
+  - test
+  - deploy
+  
+build-job:
+  stage: build
+  tags:
+    - cat
+    - grep
+  script:
+    - cd src/cat
+    - make s21_cat
+    - cd ../grep
+    - make s21_grep
+  after_script:
+    - cd src
+    - sh tg.sh
+  artifacts:
+    paths:
+      - src/cat/s21_cat
+      - src/grep/s21_grep
+    expire_in: 30 days
+
+style-job:
+  stage: style
+  tags:
+    - cat
+    - grep
+  script:
+    - cd src/cat
+    - make clang
+    - |
+      if ! clang-format -style=Google -n --Werror *.c *.h *.txt; then
+        echo "Code style check failed. Please fix the style issues.";
+        rm .clang-format
+        exit 1; 
+      else
+        echo "Code style check passed.";
+        rm .clang-format
+      fi
+    - cd ../grep
+    - make clang
+    - |
+      if ! clang-format -style=Google -n --Werror *.c *.h *.txt; then
+        echo "Code style check failed. Please fix the style issues.";
+        rm .clang-format
+        exit 1; 
+      else
+        echo "Code style check passed.";
+        rm .clang-format
+      fi
+  after_script:
+    - cd src
+    - sh tg.sh    
+
+test-job:
+  stage: test
+  dependencies:
+    - build-job
+    - style-job
+  tags:
+    - cat
+    - grep
+  script:
+    - cd src/cat
+    - |
+      if ! make test; then
+       echo "Tests check failed. Please fix the bugs.";
+       exit 1; 
+      else
+        echo "Tests check passed.";
+      fi
+    - cd ../grep
+    - |
+      if ! make test; then
+       echo "Tests check failed. Please fix the bugs.";
+       exit 1;  
+      else
+        echo "Tests check passed.";
+      fi
+  after_script:
+    - cd src
+    - sh tg.sh
+
+deploy-job:
+  stage: deploy
+  dependencies:
+    - build-job
+    - style-job
+    - test-job
+  tags:
+    - cat
+    - grep
+  when: manual
+  script:
+    - cd src
+    - sh deploy.sh
+  allow_failure: false
+  after_script:
+    - cd src
+    - sh tg.sh   
